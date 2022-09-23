@@ -29,7 +29,7 @@ $ENABLETAB3=1       #Node data protection
 $ENABLETAB4=1       #Storage usage
 $ENABLETAB5=1       #Protection schema
 $ENABLETAB6=1       #Internode statistics
-$ENABLETAB7=0
+$ENABLETAB7=1
 $ENABLETAB8=0
 $ENABLEUPLOAD=1
 
@@ -410,8 +410,8 @@ Tab -Name 'Storage nodes details' -IconSolid check-circle{
             }
                 New-HTMLTab -Name "Heatlh processor statistics"  {
                     Table -DataTable ($global:HEALTHHPSTATS|select-object "HP *" -ExcludeProperty "HP ongoing*","HP last*" ) -Title 'Health Processor' -DisableInfo -HideFooter -HideButtons -HideShowButton -DisableSearch -DisableOrdering -DisablePaging {   New-TableStyle -TextAlign center    }
-                    Table -DataTable ($global:HEALTHHPSTATS|select-object "HP last*"  ) -Title 'Health Processor'  -DisableInfo -HideFooter  -HideButtons -DisableSearch -DisableOrdering -DisablePaging  {   New-TableStyle -TextAlign center    }
-                    Table -DataTable ($global:HEALTHHPSTATS|select-object "HP ongoing*"  ) -Title 'Health Processor'  -DisableInfo -HideFooter -HideButtons  -DisableSearch -DisableOrdering  -DisablePaging {   New-TableStyle -TextAlign center    }
+                    Table -DataTable ($global:HEALTHHPSTATS|select-object "HP last*"  ) -Title 'Health Processor'  -Transpose -DisableInfo -HideFooter  -HideButtons -DisableSearch -DisableOrdering -DisablePaging  {   New-TableStyle -TextAlign center    }
+                    Table -DataTable ($global:HEALTHHPSTATS|select-object "HP ongoing*"  ) -Title 'Health Processor' -Transpose  -DisableInfo -HideFooter -HideButtons  -DisableSearch -DisableOrdering  -DisablePaging {   New-TableStyle -TextAlign center    }
                     
             }
                 New-HTMLTab -Name "Node configuration"  {
@@ -825,6 +825,75 @@ Section -Name "UDP errors : Stale response + No response"   {
 write-host "7- Gather ElasticSearch statistics"
 if ( $ENABLETAB7 -ne 0 ) {
 Tab -Name 'Health ElasticSearch statistics' -IconSolid check-circle {
+
+
+$global:SEARCHFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds" -Credential $cred)
+$global:REPLICAFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds" -Credential $cred)
+
+$SEARCHFEEDS|% {
+    $SEARCHFEEDID=$_._embedded.searchfeeds.id
+    $SEARCHFEEDNAME=$_._embedded.searchfeeds.name
+    $global:SEARCHFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds/$SEARCHFEEDID/health" -Credential $cred)
+
+
+    switch -Wildcard ($SEARCHFEEDHEALTH.overallFeedState)
+    {
+    OK { $FEEDCOLOR="green" }
+    Paused* {$FEEDCOLOR="orange"}
+    default {$FEEDCOLOR="red"}
+    }    
+
+    $global:SEARCHFEEDSTATE=@()
+    $SEARCHFEEDHEALTH.nodeStates | %{
+        $object = New-Object -TypeName PSObject
+            $object | Add-Member -Name 'Plugin State' -MemberType Noteproperty -Value $_.pluginState
+            $object | Add-Member -Name 'Feed Status' -MemberType Noteproperty -Value $_.feedState
+            $object | Add-Member -Name 'Node Reporting' -MemberType Noteproperty -Value ($_.nodesReporting -join ",")
+            
+            $global:SEARCHFEEDSTATE+=$object
+
+            }
+    New-HTMLSection -HeaderText "Search feed : $SEARCHFEEDID - $SEARCHFEEDNAME ($($SEARCHFEEDHEALTH.overallFeedState))" -HeaderBackGroundColor $FEEDCOLOR -HeaderTextColor white {
+       New-HTMLtable -DataTable ($SEARCHFEEDSTATE) -DisablePaging -DisableOrdering -DisableInfo -HideFooter -HideShowButton -HideButtons -DisableSearch { }
+    }
+    Section -Invisible {
+       table -DataTable ($SEARCHFEEDHEALTH|Select-Object -Property * -ExcludeProperty nodestates,_links) -DisablePaging -DisableOrdering -DisableInfo -HideFooter -HideButtons -Transpose  -DisableSearch { }
+    }
+
+}
+
+$REPLICAFEEDS|% {
+    $REPLICAFEEDID=$_._embedded.replicationfeeds.Id
+    $REPLICAFEEDNAME=$_._embedded.replicationfeeds.Name
+    if ( $REPLICAFEEDID ) {
+    $global:REPLICAFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds/$REPLICAFEEDID/health" -Credential $cred)
+
+
+    switch -Wildcard ($REPLICAFEEDHEALTH.overallFeedState)
+    {
+    OK { $FEEDCOLOR="green" }
+    Paused* {$FEEDCOLOR="orange"}
+    default {$FEEDCOLOR="red"}
+    }    
+
+    $global:REPLICAFEEDSTATE=@()
+    $REPLICAFEEDHEALTH.nodeStates | %{
+        $object = New-Object -TypeName PSObject
+            $object | Add-Member -Name 'Plugin State' -MemberType Noteproperty -Value $_.pluginState
+            $object | Add-Member -Name 'Feed Status' -MemberType Noteproperty -Value $_.feedState
+            $object | Add-Member -Name 'Node Reporting' -MemberType Noteproperty -Value ($_.nodesReporting -join ",")
+            
+            $global:REPLICAFEEDSTATE+=$object
+
+            }
+    New-HTMLSection -HeaderText "Replica feed : $REPLICAFEEDID - $REPLICAFEEDNAME ($($REPLICAFEEDHEALTH.overallFeedState))" -HeaderBackGroundColor $FEEDCOLOR -HeaderTextColor white {
+       New-HTMLtable -DataTable ($REPLICAFEEDSTATE) -DisablePaging -DisableOrdering -DisableInfo -HideFooter -HideShowButton -HideButtons -DisableSearch { }
+    }
+    Section -Invisible {
+      Table -DataTable ($REPLICAFEEDHEALTH|Select-Object -Property * -ExcludeProperty nodestates,_links) -DisablePaging -DisableOrdering -DisableInfo -HideFooter -Transpose -HideButtons -DisableSearch { }
+    }
+    }
+}
 }
 }
 }
