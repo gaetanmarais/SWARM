@@ -54,13 +54,13 @@ $ARRAYPROTECTION=@("policy.eCEncoding","policy.eCMinStreamSize","policy.lifecycl
 
 #### Script
 
+# allow https certificats
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 
 # install PSWriteHTLM module if not already installed - this module is used to build cool HTML pages :)
 if (-not (Get-Module -name PSWriteHTML -ListAvailable)) { Install-Module -name PSWriteHTML -AllowClobber -Force }
 
-# allow https certificats
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 
 # Ask for admin credentials
