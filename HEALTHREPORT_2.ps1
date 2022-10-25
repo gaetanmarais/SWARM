@@ -39,7 +39,7 @@ $ENABLEUPLOAD=1
 
 $COLLECTIONDATE=$(get-date)
 
-$OUTFILE="$env:APPDATA\index.html"
+
 
 $NODESURL="/api/storage/nodes"
 $CLUSTERURL="/api/storage/clusters"
@@ -54,13 +54,13 @@ $ARRAYPROTECTION=@("policy.eCEncoding","policy.eCMinStreamSize","policy.lifecycl
 
 #### Script
 
-# allow https certificats
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 
 # install PSWriteHTLM module if not already installed - this module is used to build cool HTML pages :)
 if (-not (Get-Module -name PSWriteHTML -ListAvailable)) { Install-Module -name PSWriteHTML -AllowClobber -Force }
 
+# allow https certificats
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 
 # Ask for admin credentials
@@ -116,6 +116,7 @@ $global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Credential $cr
 
 $global:NODES=(Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Credential $cred)._embedded.nodes
 
+$global:OUTFILE="$env:APPDATA\$CLUSTERNAME.html"
 
 # This is the cool part with PSWriteHTML module
 Dashboard -Name "SWARM Audit - $CLUSTERNAME" -FilePath $OUTFILE -show {
@@ -950,5 +951,10 @@ New-HTMLText -Text "Collection time :  $COLLECTIONDATE"
 
 write-host "Upload file to $URL"
 if ( $ENABLEUPLOAD -ne 0 ) {
-Write-S3Object -EndpointUrl "https://production.swarm.datacore.paris" -BucketName public -File $OUTFILE -AccessKey 'fe21d670639ab94e017a0fd091283881' -SecretKey 'P@ssw0rd'
+#Write-S3Object -EndpointUrl "https://production.swarm.datacore.paris" -BucketName public -File $OUTFILE -AccessKey 'fe21d670639ab94e017a0fd091283881' -SecretKey 'P@ssw0rd'
+
+Invoke-WebRequest -Credential $cred -Uri "https://production.swarm.datacore.paris/public/$CLUSTERNAME.html" -InFile $OUTFILE -Method "POST" -ContentType "text/html" -Headers @{
+    "X-HR-VERSION-Meta" = "$HRVERSION"
+    "X-COLLECTION-TIME-Meta" = "$COLLECTIONDATE"
+}
 }
