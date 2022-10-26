@@ -517,7 +517,9 @@ Tab -Name 'Storage nodes data protection' -IconSolid check-circle{
 
         panel {
             Table -DataTable ($global:HEALTHSTATS) -Title 'Protection detail by type and size of objects' -DisableInfo -HideFooter -HideButtons -HideShowButton -DisableSearch -DisableOrdering -DisablePaging {
-                        
+                        New-TableCondition -Name 'Need consolidation'          -Operator ne -Value 0 -BackgroundColor Darkgreen -Color white -ComparisonType string -Inline -Row
+                        New-TableCondition -Name 'Need implicit conversion'    -Operator ne -Value 0 -BackgroundColor Darkgreen -Color white -ComparisonType string -Inline -Row
+                        New-TableCondition -Name 'Need policy conversion'      -Operator ne -Value 0 -BackgroundColor Darkgreen -Color white -ComparisonType string -Inline -Row
             }
             }
         }
@@ -944,6 +946,8 @@ New-HTMLImage -Source $IMG -Width 10%
 
 New-HTMLText -Text "Health report version $HRVERSION"
 New-HTMLText -Text "Collection time :  $COLLECTIONDATE"
+New-HTMLText -Text "Collection url  :  $URL"
+New-HTMLText -Text "Collection user :  $USER"
 
 }
 
@@ -951,10 +955,12 @@ New-HTMLText -Text "Collection time :  $COLLECTIONDATE"
 
 write-host "Upload file to $URL"
 if ( $ENABLEUPLOAD -ne 0 ) {
-#Write-S3Object -EndpointUrl "https://production.swarm.datacore.paris" -BucketName public -File $OUTFILE -AccessKey 'fe21d670639ab94e017a0fd091283881' -SecretKey 'P@ssw0rd'
 
-Invoke-WebRequest -Credential $cred -Uri "https://production.swarm.datacore.paris/public/$CLUSTERNAME.html" -InFile $OUTFILE -Method "POST" -ContentType "text/html" -Headers @{
+Invoke-WebRequest -Uri "https://production.swarm.datacore.paris/public/$CLUSTERNAME.html" -InFile $OUTFILE -Method "POST" -ContentType "text/html" -Headers @{
+    "Authorization" = "Basic ZGVwb3RVU1I6UEBzc3cwcmQ="
     "X-HR-VERSION-Meta" = "$HRVERSION"
     "X-COLLECTION-TIME-Meta" = "$COLLECTIONDATE"
+    "X-COLLECTION-URL" = "$URL"
+    "X-COLLECTION-USR" = "$USER"
 }
 }
