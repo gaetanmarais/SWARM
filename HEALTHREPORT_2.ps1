@@ -13,6 +13,7 @@
 ####              1.3  - 19-09-22 - Adding Storage details + S3 upload
 ####              1.4  - 23/09/22 - Adding internode statistics details
 ####              1.5  - 24/10/22 - Fixing some errors - when nodes are unavailable, problem with some certificats, ...
+####              1.6  - 26/10/22 - Fixing credentials issues for specials policies
 ####
 ###################################################################################################################################
 ###################################################################################################################################
@@ -77,13 +78,16 @@ if ( $URL -notlike "https://*" -and $URL -notlike "http://*" ) { $URL="https://$
 $USER=read-host -Prompt "Enter username" 
     
 
-if ( $USER -notlike "*@" ) { $USER="$USER@" }
+if ( $USER -notlike "*@" ) { $USER="!$USER@" }
 
 $PWD=Read-Host -Prompt "Enter $USER password" -AsSecureString 
 
 
 $global:cred = New-Object System.Management.Automation.PSCredential ($USER, $PWD)
 
+
+$pair = "$($USER):$([System.Runtime.InteropServices.Marshal]::PtrToStringUni([System.Runtime.InteropServices.Marshal]::SecureStringToCoTaskMemUnicode($PWD)))"
+$global:encodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes($pair))
 
 
 $ADMINURL=$URL+":91"
@@ -95,7 +99,7 @@ $PORTALURL="$URL"
 
 
 # First try is to validate that everything is fine or inform of the error
-try {$global:CLUSTER=(Invoke-RestMethod -Uri "$ADMINURL$CLUSTERURL" -Credential $cred)}
+try {$global:CLUSTER=(Invoke-RestMethod -Uri "$ADMINURL$CLUSTERURL" -Headers @{Authorization = "basic $encodedCreds"})}
 catch {
         [System.Windows.MessageBox]::Show("Unable connect $ADMINURL : $Error[0]")
         Clear-Variable -Name cred -Scope global
@@ -105,15 +109,15 @@ catch {
 
 $Global:CLUSTERNAME=$CLUSTER._embedded.clusters.name
 $Global:CLUSTERSTATUSURL=$CLUSTER._embedded.clusters._links.self.href
-$global:CLUSTERSTATUS=(Invoke-RestMethod -Uri "$ADMINURL$CLUSTERSTATUSURL" -Credential $cred)
+$global:CLUSTERSTATUS=(Invoke-RestMethod -Uri "$ADMINURL$CLUSTERSTATUSURL" -Headers @{Authorization = "basic $encodedCreds"})
 
 $global:SETTINGSURL=$CLUSTERSTATUS._links.'waggle:settings'.href
-$global:SETTINGS=(Invoke-RestMethod -Uri "$ADMINURL$SETTINGSURL" -Credential $cred)
+$global:SETTINGS=(Invoke-RestMethod -Uri "$ADMINURL$SETTINGSURL" -Headers @{Authorization = "basic $encodedCreds"})
 
-$global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Credential $cred)._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
-$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Credential $cred)
+$global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Headers @{Authorization = "basic $encodedCreds"})._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
+$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Headers @{Authorization = "basic $encodedCreds"})
 
-$global:NODES=(Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Credential $cred)._embedded.nodes
+$global:NODES=(Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Headers @{Authorization = "basic $encodedCreds"})._embedded.nodes
 
 $global:OUTFILE="$env:APPDATA\$CLUSTERNAME.html"
 
@@ -133,7 +137,7 @@ Tab -Name "$CLUSTERNAME" -IconSolid check-circle{
     $settings._embedded.settings._links.self.href|%{
 
     $URL=$_
-    $RESULT=(Invoke-RestMethod -Uri "$ADMINURL$URL" -Credential $cred)
+    $RESULT=(Invoke-RestMethod -Uri "$ADMINURL$URL" -Headers @{Authorization = "basic $encodedCreds"})
     $object = New-Object -TypeName PSObject
             $object | Add-Member -Name 'Name' -MemberType Noteproperty -Value $RESULT.name
             $object | Add-Member -Name 'Value' -MemberType Noteproperty -Value $($RESULT.value -join " ")
@@ -145,7 +149,7 @@ Tab -Name "$CLUSTERNAME" -IconSolid check-circle{
     }
 
     $global:LOSSPROTECTION=@()
-    (Invoke-RestMethod -TimeoutSec 5 -Uri "$ADMINURL$CLUSTERURL/_self/summary" -Credential $cred).node_loss_protection.node_loss_detail|%{
+    (Invoke-RestMethod -TimeoutSec 5 -Uri "$ADMINURL$CLUSTERURL/_self/summary" -Headers @{Authorization = "basic $encodedCreds"}).node_loss_protection.node_loss_detail|%{
     $object = New-Object -TypeName PSObject
             $object | Add-Member -Name '# node(s) lost' -MemberType Noteproperty -Value $_.total_nodes_lost
             $object | Add-Member -Name 'Space after node loss' -MemberType Noteproperty -Value $([math]::round(($_.total_space_after_loss/1024),2))
@@ -212,8 +216,8 @@ Tab -Name 'Storage nodes details' -IconSolid check-circle{
             $NODE=$_.id
             $NAME=$_.name
             $global:GATHERERROR=0
-            $global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Credential $cred)._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
-            try {$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Credential $cred -ErrorAction SilentlyContinue)}
+            $global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Headers @{Authorization = "basic $encodedCreds"})._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
+            try {$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Headers @{Authorization = "basic $encodedCreds"} -ErrorAction SilentlyContinue)}
             catch {
             write-host "$NAME is unavailble"
             $global:GATHERERROR=1
@@ -221,7 +225,7 @@ Tab -Name 'Storage nodes details' -IconSolid check-circle{
 
             if ( $GATHERERROR -ne 1 ) {
             $HEALTHREPORTURL=$($STATUS._links."waggle:healthreport".href)
-            $HEALTHREPORT=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHREPORTURL" -Credential $cred -TimeoutSec 5)
+            $HEALTHREPORT=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHREPORTURL" -Headers @{Authorization = "basic $encodedCreds"} -TimeoutSec 5)
 
             $STATS=$HEALTHREPORT.healthreport.'SNMP tables'.'HP last cycle: Stream stats'
             $DISKS=$HEALTHREPORT.healthreport.'SNMP tables'.'Volumes Table'
@@ -234,7 +238,7 @@ Tab -Name 'Storage nodes details' -IconSolid check-circle{
             $INTERNODESUDP=$HEALTHREPORT.healthreport.'SNMP tables'.'Internode: UDP connection stats'
 
             $HEALTHHPSTATSURL=$($STATUS._links."waggle:hpstats".href)
-            $global:HEALTHHPSTATS=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHHPSTATSURL" -Credential $cred -TimeoutSec 5)
+            $global:HEALTHHPSTATS=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHHPSTATSURL" -Headers @{Authorization = "basic $encodedCreds"} -TimeoutSec 5)
 
             $global:HEALTHDISKS=@()
             For ($i=0; $i -lt $DISKS.Index.Count; $i++) {
@@ -487,14 +491,14 @@ Tab -Name 'Storage nodes data protection' -IconSolid check-circle{
             $NODE=$_.id
             $NAME=$_.name
             $global:GATHERERROR=0
-            $global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Credential $cred)._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
-            try {$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Credential $cred)}
+            $global:NODESTATUSURL=((Invoke-RestMethod -Uri "$ADMINURL$NODESURL" -Headers @{Authorization = "basic $encodedCreds"})._embedded.nodes._links.self|?{$_.href -like "*nodes/$NODE*"}).href
+            try {$global:STATUS=(Invoke-RestMethod -Uri "$ADMINURL$NODESTATUSURL" -Headers @{Authorization = "basic $encodedCreds"})}
             catch {write-host "$NODE unavailable"
                 $global:GATHERERROR=1
                 }
             if ( $GATHERERROR -ne 1 ) {
             $HEALTHREPORTURL=$($STATUS._links."waggle:healthreport".href)
-            $global:HEALTHREPORT=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHREPORTURL" -Credential $cred -TimeoutSec 5)
+            $global:HEALTHREPORT=(Invoke-RestMethod -Uri "$ADMINURL$HEALTHREPORTURL" -Headers @{Authorization = "basic $encodedCreds"} -TimeoutSec 5)
         
         
             New-HTMLTab -Name "$NAME"  {
@@ -535,7 +539,7 @@ if ( $ENABLETAB4 -ne 0 ) {
 Tab -Name 'Domains storage usage' -IconSolid check-circle {
 
     $global:DOMAINUSAGE=@()
-    $global:TENANTS=(Invoke-RestMethod -Uri "$PORTALURL$TENANTSURL" -Credential $cred ).name 
+    $global:TENANTS=(Invoke-RestMethod -Uri "$PORTALURL$TENANTSURL" -Headers @{Authorization = "basic $encodedCreds"} ).name 
     New-HTMLTabPanel -Orientation vertical -TransitionAnimation slide-vertical    {
 
     $TENANTS| %{
@@ -543,18 +547,18 @@ Tab -Name 'Domains storage usage' -IconSolid check-circle {
         $global:TENANT=$_
         New-HTMLTab -Name "$TENANT"  {
         section {
-        $TENANTBYTEUSER=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/bytesSize/current?format=json" -Credential $cred )
-        $TENANTBYTERAW=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/bytesStored/current?format=json" -Credential $cred )
-        $TENANTOBJECTS=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/objectsStored/current?format=json" -Credential $cred )
+        $TENANTBYTEUSER=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/bytesSize/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} )
+        $TENANTBYTERAW=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/bytesStored/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} )
+        $TENANTOBJECTS=(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/meter/usage/objectsStored/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} )
 
 
-        (Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/${TENANT}/domains/?format=json" -Credential $cred)|%{
+        (Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/${TENANT}/domains/?format=json" -Headers @{Authorization = "basic $encodedCreds"})|%{
         $global:DOMAIN=$_.name
-        $DOMAINBYTEUSER=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/bytesSize/current?format=json" -Credential $cred -ErrorAction Ignore ).bytesSize}
+        $DOMAINBYTEUSER=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/bytesSize/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} -ErrorAction Ignore ).bytesSize}
            catch{$DOMAINBYTEUSER=[int][math]::0}
-        $DOMAINBYTERAW=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/bytesStored/current?format=json" -Credential $cred -ErrorAction Ignore ).bytesStored}
+        $DOMAINBYTERAW=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/bytesStored/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} -ErrorAction Ignore ).bytesStored}
            catch{$DOMAINBYTERAW=[int][math]::0}
-        $DOMAINOBJECTS=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/objectsStored/current?format=json" -Credential $cred -ErrorAction Ignore ).objectsStored}
+        $DOMAINOBJECTS=try{(Invoke-RestMethod -Uri $PORTALURL"/_admin/manage/tenants/$TENANT/domains/$DOMAIN/meter/usage/objectsStored/current?format=json" -Headers @{Authorization = "basic $encodedCreds"} -ErrorAction Ignore ).objectsStored}
            catch{$DOMAINOBJECTS=[int][math]::0}
 
 
@@ -630,7 +634,7 @@ Tab -Name 'Domains protection schema' -IconSolid check-circle {
 
         $global:PROTECTIONSCHEMA=@()
                
-        try{$DOMAINSDETAILS=(Invoke-RestMethod -Uri $PORTALURL"?domains&format=json&fields=*" -Credential $cred)
+        try{$DOMAINSDETAILS=(Invoke-RestMethod -Uri $PORTALURL"?domains&format=json&fields=*" -Headers @{Authorization = "basic $encodedCreds"})
 
         $DOMAINSDETAILS|sort -Property 'x_tenant_meta_name','name' |%{
 
@@ -660,7 +664,7 @@ Tab -Name 'Domains protection schema' -IconSolid check-circle {
 
         $THEDOMAINNAME="https://$($_.name)"
         try{
-            $BUCKETSDETAILS=(Invoke-RestMethod -Uri $THEDOMAINNAME"?format=json&fields=*" -Credential $cred)
+            $BUCKETSDETAILS=(Invoke-RestMethod -Uri $THEDOMAINNAME"?format=json&fields=*" -Headers @{Authorization = "basic $encodedCreds"})
             $BUCKETSDETAILS|sort -Property 'name'|%{
 
             if ( ! $_.policy_ecencoding )           { $ECPOLICY = "DEFAULT" }      else { $ECPOLICY = ($_.policy_ecencoding).toupper()}
@@ -867,13 +871,13 @@ if ( $ENABLETAB7 -ne 0 ) {
 Tab -Name 'Feeds details' -IconSolid check-circle {
 
 
-$global:SEARCHFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds" -Credential $cred)
-$global:REPLICAFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds" -Credential $cred)
+$global:SEARCHFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds" -Headers @{Authorization = "basic $encodedCreds"})
+$global:REPLICAFEEDS=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds" -Headers @{Authorization = "basic $encodedCreds"})
 
 $SEARCHFEEDS|% {
     $SEARCHFEEDID=$_._embedded.searchfeeds.id
     $SEARCHFEEDNAME=$_._embedded.searchfeeds.name
-    $global:SEARCHFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds/$SEARCHFEEDID/health" -Credential $cred)
+    $global:SEARCHFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/searchfeeds/$SEARCHFEEDID/health" -Headers @{Authorization = "basic $encodedCreds"})
 
 
     switch -Wildcard ($SEARCHFEEDHEALTH.overallFeedState)
@@ -906,7 +910,7 @@ $REPLICAFEEDS|% {
     $REPLICAFEEDID=$_._embedded.replicationfeeds.Id
     $REPLICAFEEDNAME=$_._embedded.replicationfeeds.Name
     if ( $REPLICAFEEDID ) {
-    $global:REPLICAFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds/$REPLICAFEEDID/health" -Credential $cred)
+    $global:REPLICAFEEDHEALTH=(Invoke-RestMethod -Uri "$ADMINURL/api/storage/replicationfeeds/$REPLICAFEEDID/health" -Headers @{Authorization = "basic $encodedCreds"})
 
 
     switch -Wildcard ($REPLICAFEEDHEALTH.overallFeedState)
@@ -946,7 +950,7 @@ New-HTMLImage -Source $IMG -Width 10%
 New-HTMLText -Text "Health report version $HRVERSION"
 New-HTMLText -Text "Collection time :  $COLLECTIONDATE"
 New-HTMLText -Text "Collection url  :  $URL"
-New-HTMLText -Text "Collection user :  $USER"
+
 
 }
 
@@ -960,6 +964,6 @@ Invoke-WebRequest -Uri "https://production.swarm.datacore.paris/public/$CLUSTERN
     "X-HR-VERSION-Meta" = "$HRVERSION"
     "X-COLLECTION-TIME-Meta" = "$COLLECTIONDATE"
     "X-COLLECTION-URL" = "$URL"
-    "X-COLLECTION-USR" = "$USER"
-}
+    
+    } 
 }
