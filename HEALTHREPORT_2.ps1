@@ -55,12 +55,13 @@ $ARRAYPROTECTION=@("policy.eCEncoding","policy.eCMinStreamSize","policy.lifecycl
 #### Script
 
 
+# TLS12 security protocol
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 # install PSWriteHTLM module if not already installed - this module is used to build cool HTML pages :)
 if (-not (Get-Module -name PSWriteHTML -ListAvailable)) { Install-Module -name PSWriteHTML -AllowClobber -Force }
 
-# allow https certificats
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 
 
 # Ask for admin credentials
@@ -73,7 +74,7 @@ if ( $URL -notlike "https://*" -and $URL -notlike "http://*" ) { $URL="https://$
 
 
 
-    $USER=read-host -Prompt "Enter username" 
+$USER=read-host -Prompt "Enter username" 
     
 
 if ( $USER -notlike "*@" ) { $USER="$USER@" }
@@ -87,8 +88,6 @@ $global:cred = New-Object System.Management.Automation.PSCredential ($USER, $PWD
 
 $ADMINURL=$URL+":91"
 $PORTALURL="$URL"
-$UPLOADURL="$URL/public"
-
 
 
 
@@ -742,7 +741,7 @@ $PIVOTTCP = foreach ($dg in $GROUPTCP) {
 
    $props = @(
         @{ Name = " " ; Expression = { ($dg.Group | Select-Object -ExpandProperty source -Unique) }}
-        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique)  ) {
+        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique|? {$_ -in $GROUPTCP.Name})  ) {
             @{ 
                 Name = "$dest"
                 Expression = { " $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Successful"") ($([math]::round($(100*$($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Successful"")/$($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Attempts"")),2))%)" }.GetNewClosure()
@@ -759,7 +758,7 @@ $ERRORSTCP = foreach ($dg in $GROUPTCP) {
 
    $props = @(
         @{ Name = " " ; Expression = { ($dg.Group | Select-Object -ExpandProperty source -Unique) }}
-        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique)  ) {
+        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique|? {$_ -in $GROUPTCP.Name})  ) {
             @{ 
                 Name = "$dest"
                 Expression = { " $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""interrupted"") + $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""not connected"") " }.GetNewClosure()
@@ -777,11 +776,11 @@ $ERRORSTCP = foreach ($dg in $GROUPTCP) {
 $GROUPUDP = ($HEALTHINTERNODESUDP |  sort -Property source | Group-Object -Property source)
 
 
-$PIVOTUDP = foreach ($dg in $GROUPTCP) {
+$PIVOTUDP = foreach ($dg in $GROUPUDP) {
 
    $props = @(
         @{ Name = " " ; Expression = { ($dg.Group | Select-Object -ExpandProperty source -Unique) }}
-        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique)  ) {
+        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique|? {$_ -in $GROUPUDP.Name})  ) {
             @{ 
                 Name = "$dest"
                 Expression = { " $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Successful"") ($([math]::round($(100*$($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Successful"")/$($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Attempts"")),2))%)" }.GetNewClosure()
@@ -798,7 +797,7 @@ $ERRORSUDP = foreach ($dg in $GROUPUDP) {
 
    $props = @(
         @{ Name = " " ; Expression = { ($dg.Group | Select-Object -ExpandProperty source -Unique) }}
-        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique)  ) {
+        foreach ($dest in  ($dg.Group | Select-Object -ExpandProperty destination | sort -Unique|? {$_ -in $GROUPUDP.Name})  ) {
             @{ 
                 Name = "$dest"
                 Expression = { " $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""Stale response"") + $($dg.Group | Where-Object destination -eq $dest | Select-Object -ExpandProperty ""no response"") " }.GetNewClosure()
