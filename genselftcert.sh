@@ -5,6 +5,20 @@
 # Date   : 2023/04/18
 #################################################################
 
+
+if [[  $((which dig  >/dev/null 2>&1);echo $?) -ne 0 ]] ; then
+        echo " ERROR : dig is not installed on this system, please install bind-utils"
+        exit 1
+fi
+
+if [[  $((which openssl  >/dev/null 2>&1);echo $?) -ne 0 ]] ; then
+        echo " ERROR : openssl is not installed on this system, please install it"
+        exit 1
+fi
+
+
+
+
 read -e -p "Domain name       : " DOMAIN
 read -e -p "Company name      : " COMPANY
 read -e -p "Country (FR/ES..) : " COUNTRY
@@ -41,12 +55,16 @@ echo "State             : $STATE"
 
 read
 
-if [[ -r ${DOMAIN} ]] ; then
-        echo "Folder ${DOMAIN} already exist, you can brake now!    if not existing certificats will be replaced"
-        rm -rf ${DOMAIN}
+if [[ ! -r ./certs ]] ; then
+        mkdir ./certs
+fi
+
+if [[ -r "./certs/${DOMAIN}" ]] ; then
+        echo "Folder ./certs/${DOMAIN} already exist, you can brake now!    if not existing certificats will be replaced"
+        rm -rf "./certs/${DOMAIN}"
         read
 fi
-mkdir ${DOMAIN}
+mkdir "./certs/${DOMAIN}"
 
 
 # Create root CA & Private key
@@ -56,15 +74,15 @@ openssl req -x509 \
             -nodes \
             -newkey rsa:2048 \
             -subj "/CN=${DOMAIN}/C=${COUNTRY}/L=${CITY}" \
-            -keyout ${DOMAIN}/rootCA.key -out ${DOMAIN}/rootCA.crt
+            -keyout "./certs/${DOMAIN}/rootCA.key" -out "./certs/${DOMAIN}/rootCA.crt"
 
 # Generate Private key
 
-openssl genrsa -out ${DOMAIN}/${DOMAIN}.key 2048
+openssl genrsa -out "./certs/${DOMAIN}/${DOMAIN}.key" 2048
 
 # Create csf conf
 
-cat > ${DOMAIN}/csr.conf <<EOF
+cat > ./certs/${DOMAIN}/csr.conf <<EOF
 [ req ]
 default_bits = 2048
 prompt = no
@@ -93,11 +111,11 @@ EOF
 
 # create CSR request using private key
 
-openssl req -new -key ${DOMAIN}/${DOMAIN}.key -out ${DOMAIN}/${DOMAIN}.csr -config ${DOMAIN}/csr.conf
+openssl req -new -key "./certs/${DOMAIN}/${DOMAIN}.key" -out "./certs/${DOMAIN}/${DOMAIN}.csr" -config "./certs/${DOMAIN}/csr.conf"
 
 # Create a external config file for the certificate
 
-cat > ${DOMAIN}/cert.conf <<EOF
+cat > ./certs/${DOMAIN}/cert.conf <<EOF
 
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
@@ -112,8 +130,11 @@ EOF
 # Create SSl with self signed CA
 
 openssl x509 -req \
-    -in ${DOMAIN}/${DOMAIN}.csr \
-    -CA ${DOMAIN}/rootCA.crt -CAkey ${DOMAIN}/rootCA.key \
-    -CAcreateserial -out ${DOMAIN}/${DOMAIN}.crt \
+    -in "./certs/${DOMAIN}/${DOMAIN}.csr" \
+    -CA "./certs/${DOMAIN}/rootCA.crt" -CAkey "./certs/${DOMAIN}/rootCA.key" \
+    -CAcreateserial -out "./certs/${DOMAIN}/${DOMAIN}.crt" \
     -days 1825 \
-    -sha256 -extfile ${DOMAIN}/cert.conf
+    -sha256 -extfile "./certs/${DOMAIN}/cert.conf"
+
+
+cat "./certs/${DOMAIN}/rootCA.crt" "./certs/${DOMAIN}/rootCA.key" "./certs/${DOMAIN}/${DOMAIN}.crt" "./certs/${DOMAIN}/${DOMAIN}.key" > "./certs/${DOMAIN}/${DOMAIN}.pem"
