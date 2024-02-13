@@ -19,23 +19,25 @@
 ##
 ##    VARIABLES
 
+STORAGENODE="IP of a Storage ndoe"
+DEFAULTDOMAIN="enter default domain here"
+DEFAULTBUCKET="enter default bucket here"
 
+#######################################
 OLDSEGMENT="set:-"
 
-##
-##
-##############################################################################################################
-##############################################################################################################
+
+
 clear
-read -p "IP d'un Storage node [172.20.3.1]? " SWARM
-if [[ "${SWARM}" == "" ]]; then SWARM="172.20.3.1";fi
+read -p "IP d'un Storage node [${STORAGENODE}]? " SWARM
+if [[ "${SWARM}" == "" ]]; then SWARM="${STORAGENODE}";fi
 
-read -p "Nom du domaine [production.swarm.datacore.paris]? " DOMAIN
-if [[ "${DOMAIN}" == "" ]]; then DOMAIN="production.swarm.datacore.paris";fi
+read -p "Nom du domaine [${DEFAULTDOMAIN}]? " DOMAIN
+if [[ "${DOMAIN}" == "" ]]; then DOMAIN="${DEFAULTDOMAIN}";fi
 
 
-read -p "Nom du bucket [gmarais]? " BUCKET
-if [[ "${BUCKET}" == "" ]]; then BUCKET="gmarais";fi
+read -p "Nom du bucket [${DEFAULTBUCKET}]? " BUCKET
+if [[ "${BUCKET}" == "" ]]; then BUCKET="${DEFAULTBUCKET}";fi
 
 
 read -p "Nom de l'objet? " OBJECT
