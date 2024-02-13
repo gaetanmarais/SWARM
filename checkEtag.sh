@@ -44,7 +44,7 @@ curl -s -LI "http://${SWARM}/${ETAG}?countreps&verbose">/tmp/headers.$$
 
 
 
-cat /tmp/headers.$$|egrep -E "Policy|MD5|Overlay|Content-Length|X-Object-Lock|Lifepoint|Castor-System-Path"|awk -v OFMT="%5.2f%%" -F":" '{
+cat /tmp/headers.$$|egrep -E "Policy|MD5|Overlay|Content-Length|X-Object-Lock|Lifepoint|Castor-System-Path|Castor-System-Created|Castor-System-Previous-Version"|awk -v OFMT="%5.2f%%" -F":" '{
         if ($1=="Content-Length") {
                 if ($2>1000000000) {print $1":"($2/1000/1000/1000)"Gb"}
                 else if ($2>1000000) {print $1":"($2/1000/1000)"Mb"}
@@ -58,9 +58,9 @@ NBSEG=$(cat /tmp/headers.$$|awk -F":" '/Policy-ECEncoding-Evaluated:/ {print $2+
 
 
 if [[ $(cat /tmp/headers.$$|grep -c "Manifest: ec") -eq 1 ]]; then
-###echo "curl -s -X GET -L ""http://${SWARM}/${BUCKET}/${OBJECT}?domain=${DOMAIN}&checkintegrity"""
-curl -s -X GET -L "http://${SWARM}/${ETAG}?checkintegrity">/tmp/checkintegrity.$$
+curl -s -X GET -L "http://${SWARM}/${ETAG}?etag&checkintegrity">/tmp/checkintegrity.$$
 
+echo "============================================================================================"
 echo "Check Integrity"
 i=0
 j=$(cat /tmp/checkintegrity.$$|wc -l)
