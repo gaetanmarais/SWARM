@@ -29,8 +29,8 @@ do
         else
                 COLOR=$GREEN
         fi
-        echo -e "\tSource:\t${COLOR}$SOURCE"
-        echo -e "\tValue:\t${VALUE}"
-        echo -e "\tDefault:\t${DEFAULT}"
+        echo -e "\t{COLOR}Source  \t$$SOURCE"
+        echo -e "\tValue   \t${VALUE}"
+        echo -e "\tDefault \t${DEFAULT}"
 echo -e "${PURPLE}-------------------------------------------------------------${ENDCOLOR}"
 done
